@@ -7,6 +7,7 @@
 ## Part 2/3: select adult children education from randhrsfamk1992_2014v1
 ## Part 3/3: 
 ### 1) merge them into main file randhrs1992_2018v1
-### 2) variable creation, distribution and missing data handling
-### 3) analysis: OLS, mediation (Baron & Kenny), seemingly unrelated estimation (suest)
+### 2) distribution and missing data handling
+### 3) variable creation,
+### 4) analysis: OLS, mediation (Baron & Kenny), seemingly unrelated estimation (suest)
 
