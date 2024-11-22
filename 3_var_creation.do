@@ -1,7 +1,7 @@
-//Program: rand_hrs_01
-//Project: effect of adult children's education on parental cognitions
-//Task: Create variables 
-//Author:lutian 
+// Author:lutian 
+// Date: Feb 29, 2024
+// Project: Effect of family education on older adults cognitive function
+// Task: Create variables 
 
 version   16.1
 clear     all
