@@ -1,3 +1,7 @@
+// Author:lutian
+// Date: Feb 29, 2024
+// Project: Effect of family education on older adults cognitive function
+// Task: prepare data sets of parental education
 
 * Prepare parental education
 use randhrsfamr1992_2014v1, clear
