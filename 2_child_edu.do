@@ -1,7 +1,7 @@
-//Program: rand_hrs_01
-//Project: effect of adult children's education on parental cognitions
-//Task: data prep
-//Author:lutian 
+// Author:lutian 
+// Date: Feb 29, 2024
+// Project: Effect of family education on older adults cognitive function
+// Task: prepare data sets of adult children education
 
 *** #1 Prepare education dataset through appending two datasets
 
