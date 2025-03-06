@@ -1,7 +1,8 @@
 // Author:lutian 
 // Date: Feb 29, 2024
 // Project: Effect of family education on older adults cognitive function
-// Task: Create variables 
+// Task: Create variables for OLS models 
+
 
 version   16.1
 clear     all
@@ -10,252 +11,303 @@ matrix drop _all
 
 //   #1
 //   Load data
-use   rand_hrs_01, clear
+
+* 1. load traker file
+use    trk2020tr_r, clear
+rename *, lower
+gen    rahhidpn = hhid + pn
+order  rahhidpn, first
+sort   rahhidpn
+
+merge 1:1 rahhidpn using rand_hrs_01 //  38,630
+sort  rahhidpn
+keep if _merge==3 
+drop    _merge
+save	 merged_step1.dta, replace
+
+clear
+
+* 2. load harmonized cognition data
+use    COGIMP9220A_R, clear
+rename *, lower
+gen    rahhidpn = hhid + pn
+order  rahhidpn, first
+sort rahhidpn
+
+* 3. merge 
+merge 1:1 rahhidpn using merged_step1
+sort rahhidpn
+keep if _merge==3 
+drop    _merge // 37,401  
+
+* 4. Restrict sample to alive kid
+keep if if_alive==1 // 34 observations deleted
+
+* 5. Restrict sample to kid age > 25 & < 70
+
+drop if kidage > 70         // 23,145  observations deleted
+drop if kidage < 25         //  963 observations deleted
+drop if missing(kidage)     // 0; N =  13,259 
+ 
 
 
-//  #2
+* 6. Restrict sample:  drop respondents without any children
+
+gen     parent=0
+replace parent = 1 if hhchild != 0 
+
+drop if parent==0        // 3 observations deleted
+
+* 7.  Restrict sample:  all variables are NOT proxy interviews
+gen proxyflag = 1
+forvalues i = 1/15 {
+    replace proxyflag = 0 if r`i'proxy == 1  
+}
+keep if proxyflag == 1 // 1,352  observations deleted
+
+
+save 	merged_step2.dta, replace // N= 11,904
+
+clear
+
+use 	merged_step2.dta, clear
+
+
+* 8. check the R birthyear, cohort info
+tab birthyr  
+tab racohbyr
+
+//  #3
 //  Data preparation
 
+* 1. 
 * cognition (DV)
-gen       cognition = .
- 
-forvalues n = 3/12 {
-  replace cognition = r`n'cogtot //if r`n'cogtot <.
-}
- 
-tab       cognition, mi
+* Generate a new variable for the mean cognition score across waves 3 to 15
+egen cognition = rowmean(r3cogtot  r4cogtot   r5cogtot   r6cogtot r7cogtot ///
+						 r8cogtot  r9cogtot   r10cogtot r11cogtot r12cogtot ///
+						 r13cogtot r14cogtotp r15cogtotp) 
+	drop if missing(cognition) // 1 deleted
+					 
+    tab cognition, m // no missing
+  
+			  
+	egen wave_cog = rownonmiss(r3cogtot  r4cogtot    r5cogtot  r6cogtot  r7cogtot ///
+							   r8cogtot  r9cogtot    r10cogtot r11cogtot r12cogtot ///
+							   r13cogtot r14cogtotp  r15cogtotp)
+	tab wave_cog, m
 
-lab var  cognition "Cognition scores"
+
+
+* 2. 
+* Mediators 
+	*1) Ever smoke
+	* collasp ever smoke now 
+
+gen smokev = 0  // Initialize as never smoked
+
+	* Loop through all 15 waves to identify ever smokers
+	forvalues w = 1/15 {
+		replace smokev = 1 if r`w'smokev == 1  // Flag ever smokers
+	}
+
+	* Handle true missingness (all waves of rwsmokev are missing)
+	gen missing_smoked = 1  // Start by assuming all data is missing
+	forvalues w = 1/15 {
+		replace missing_smoked = 0 if r`w'smokev == 1 | r`w'smokev == 0  
+	}
+
+	* Set ever_smoked to missing if all values are genuinely missing
+	replace smokev = . if missing_smoked == 1
+	tab 	smokev, m
+	lab var smokev "R ever smoked"
+	
+	*2) Ever drink
+
+* Initialize ever_drink to 0 (assume never drank alcohol)
+gen drink = 0  
+
+	* Check all 15 waves to identify respondents who reported ever drinking
+	forvalues w = 1/15 {
+		replace drink = 1 if r`w'drink == 1  // Flag ever drinkers
+	}
+
+	* Handle true missingness (all waves of rwdrink are missing)
+	gen missing_drink = 1  
+	forvalues w = 1/15 {
+		replace missing_drink = 0 if r`w'drink == 1 | r`w'drink == 0  
+	}
+
+	* Set ever_drink to missing if all values are genuinely missing
+	replace drink = . if missing_drink == 1
+	
+	tab       drink , m
+
+	lab var   drink "R ever drinks any alcohol"
+	
+	* 3) Vigrous physical activity
+* Initialize vigex as "no vigorous activity" by default
+gen vigex = 0  
+
+	* Wave 1: Use derived R1VIGACT
+	replace vigex = 1 if r1vigact == 1
+
+	* Wave 2: Use derived R2VIGACT
+	replace vigex = 1 if r2vigact == 1
+
+	* Waves 3–6: Use RwVIGACT directly
+	forvalues w = 3/6 {
+		replace vigex = 1 if r`w'vigact == 1
+	}
+
+	* Waves 7–15: Recode RwVGACTX to binary
+	forvalues w = 7/15 {
+		replace vigex = 1 if r`w'vgactx == 1  // Every day or >1 per week
+	}
+
+	* Handle cases where all waves are missing
+	egen miss_ex = rowmiss(r1vigact r2vigact r3vigact r4vigact r5vigact ///
+                          r6vigact r7vgactx r8vgactx r9vgactx r10vgactx ///
+                          r11vgactx r12vgactx r13vgactx r14vgactx r15vgactx)
+
+	* Set vigex to missing if all 15 variables are missing
+	replace vigex = . if miss_ex == 15.   
+
+	tab     vigex, m
+
+	lab var vigex "Freqency of vigorous physical activity  3+/wk" 
+
+* 4. 
+* Controls 
+
+* 1. recode marital status 
+gen missing_count = 0  // Initialize counter for missing marital status values
+
+forvalues i = 1/15 {
+    replace missing_count = missing_count + (missing(r`i'mstat))
+}
+
+	gen not_con_marr = 0  // Initialize as 0 (assume continuously married)
+
+	forvalues i = 1/15 {
+		replace not_con_marr = 1 if r`i'mstat != 1 & r`i'mstat != 2 & !missing(r`i'mstat)
+	}
+
+* Set to missing if marital status is completely missing across all waves
+	replace not_con_marr = . if missing_count == 15
+	tab not_con_marr, m
+
+tab not_con_marr edmax, m
+
+	* skip pattern for spouse education
+	forvalues i = 1/15 {
+		* review marital status 
+    tab r`i'mstat
+
+    * Replace spouse education with 0 if spouse edu is missed when R not married/partnered
+		replace s`i'edyrs = 0 if missing(s`i'edyrs) & !inlist(r`i'mstat, 1, 2)
+	}
+
+
+* 2. Spouse education years
+ 
+ egen spedmax = rowmax(s1edyrs s2edyrs s3edyrs s4edyrs s5edyrs s6edyrs s7edyrs ///
+                     s8edyrs s9edyrs s10edyrs s11edyrs s12edyrs s13edyrs s14edyrs s15edyrs)
+					 
+	tab       spedmax, m
+	lab var   spedmax "Spouse education"
+	
+	drop if missing(spedmax) // 1 removed
 	 
-* Household income and wealth
+   recode  spedmax (0/11=1 "Less than High School") (12=2 "High School")    ///
+              (13/15=3 "Some College") (16/17=4 "College Degree"), gen(spedmaxcat)
 
-gen       itot = .
- 
-forvalues n = 1/12 {
-  replace itot = h`n'itot if h`n'itot <.
+   tab     spedmaxcat, gen (p_)
+   rename  p_1 spedlhs
+   rename  p_2 spedhs
+   rename  p_3 spedsc
+   rename  p_4 spedcol
+   tab     spedmax, m
+   
+   
+	
+* 3. mean total value
+* Generate a new variable for the mean total value across waves h1 to h15
+egen itot = rowmean(h1itot h2itot h3itot h4itot h5itot h6itot h7itot ///
+                    h8itot h9itot h10itot h11itot h12itot h13itot ///
+                    h14itot h15itot)
+
+	gen       hitot = log(itot)
+	lab var   hitot "Household income (logged)"
+	tab hitot, m
+
+* 4. household wealth
+egen ahous = rowmean(h1ahous h2ahous h3ahous h4ahous h5ahous h6ahous h7ahous ///
+                     h8ahous h9ahous h10ahous h11ahous h12ahous h13ahous ///
+                     h14ahous h15ahous)
+
+						  
+	gen       hahous = log(ahous)
+	lab var   hahous "Household wealth (logged)"
+	tab hahous, m				
+
+
+* 5. Respodent health conditions
+
+ foreach condition in hibpe diabe cancre lunge hearte stroke {
+    gen `condition' = .
+    foreach n of numlist 1/15 {
+        replace `condition' = 1 if r`n'`condition' == 1
+        replace `condition' = 0 if missing(`condition') & r`n'`condition' == 0
+    }
 }
+tab1 hibpe diabe cancre lunge hearte stroke, m
 
-mdesc itot
-
-
-gen       hitot = log(itot)
-lab var   hitot "Household income (logged)"
-
-* household wealth
-gen       ahous = .
- 
-forvalues n = 1/12 {
-  replace ahous = h`n'ahous if h`n'ahous <.
-}
- 
-mdesc     ahous
-
-gen       hahous = log(ahous)
-lab var   hahous "Household wealth (logged)"
-
-
-* Spouse education years
-
-
-gen      spedu = .
- 
-forvalues n = 1/12 {
-  replace spedu = s`n'edyrs  if s`n'edyrs  <.
-}
- 
-tab       spedu, m
-
-lab var   spedu "Spouse education"
-
-** Respodent demogranphic 
- * recode R age
-
-gen       rage = .
- 
-forvalues n = 1/12 {
-  replace rage = r`n'agey_e  if r`n'agey_e <.
-}
- 
-tab       rage, m
-
-lab var   rage "R age"
-
- * recode marital status 
-
-
-gen       mstat = .
- 
-forvalues n = 1/12 {
-  replace mstat = r`n'mstat if r`n'mstat <.
-}
- 
-tab       mstat, m
-
-
-recode    mstat  (1/2=1 "Married") (4/6=2 "Div/Sep") (7=3 "Widow") ///
-				(8=4 "NevMar"), gen(marcat) 
-				
-label var marcat  "Marital Status"
-
-tab       marcat, gen (m_)
-
- *rename so that I remember what they are
-rename m_1 married
-rename m_2 sepdiv
-rename m_3 widow
-rename m_4 nevermarr
-
-
-
-
- * collasp smoke now 
-
-gen       smoken = .
- 
-forvalues n = 1/12 {
-  replace smoken = r`n'smoken  if r`n'smoken  <.
-}
- 
-tab       smoken, m
-
-lab var   smoken "Smoke now?"
-
-
-gen       smokev = .
- 
-forvalues n = 1/12 {
-  replace smokev = r`n'smokev  if r`n'smokev  <.
-}
- 
-tab       smokev, m
-
-lab var   smokev "Smoke ever?"
-
- * collasp vigrous physical activity, wave 1-6: 0/1; wave 7-12, 0/5.
- * recode wave 7-12 into 0/1
- 
-gen vigex = .
- 
-forvalues n = 1/6 {
-replace vigex = r`n'vigact if r`n'vigact < .
-}
- 
-forvalues n = 7/12 {
-      replace vigex = 0 if r`n'vgactx==0 | r`n'vgactx==3 | r`n'vgactx==4 | r`n'vgactx==5
-      replace vigex = 1 if r`n'vgactx==1 | r`n'vgactx==2
-}
- 
-tab vigex, m
-
-lab var vigex "Freqency of vigorous physical activity  3+/wk" 
- 
-
- * collasp drink
-gen       drink = .
- 
-forvalues n = 1/12 {
-  replace drink  = r`n'drink   if r`n'drink   <.
-}
- 
-tab       drink , m
-
-lab var   drink "R ever drinks any alcohol"
-	 
-
-** Respodent health conditions
-
- * recode hypertension
-
-gen       hibpe = .
- 
-forvalues n = 1/12 {
-  replace hibpe  = r`n'hibpe   if r`n'hibpe   <.
-}
- 
-tab       hibpe , m
-
-lab var   hibpe "R ever had high blood pressure"
-
- * recode diabetes
- 
-gen       diabe = .
- 
-forvalues n = 1/12 {
-  replace diabe  = r`n'diabe   if r`n'diabe   <.
-}
- 
-tab       diabe , m
-
-lab var   diabe "R ever had diabetes"	 
-
- * recode cancer
-gen       cancre = .
- 
-forvalues n = 1/12 {
-  replace cancre  = r`n'cancre   if r`n'cancre   <.
-}
- 
-tab       cancre , m
-
-lab var   cancre "R ever had cancer"	
-
-  *recode lung disease
-
-gen       lunge = .
- 
-forvalues n = 1/12 {
-  replace lunge  = r`n'lunge   if r`n'lunge   <.
-}
- 
-tab       lunge , m
-
-lab var   lunge "R ever had lung disease" 
-
-  * recode heart disease
-
-gen       hearte = .
- 
-forvalues n = 1/12 {
-  replace hearte  = r`n'hearte   if r`n'hearte   <.
-}
- 
-tab       hearte , m
-
-lab var   hearte "R ever had heart problems" 
-
-  * recode stroke
-
-gen       stroke = .
- 
-forvalues n = 1/12 {
-  replace stroke  = r`n'stroke   if r`n'stroke   <.
-}
- 
-tab       stroke , m
-
-lab var   stroke "R ever had stroke" 	 
-
-  * recode CESD
-gen       cesd = .
- 
-forvalues n = 2/12 {
-  replace cesd  = r`n'cesd   if r`n'cesd   <.
-}
- 
-tab       cesd, m
-
-lab var   cesd "R CESD scores" 	
 
   * recode self-rated health
-gen      shlt = .
- 
-forvalues n = 1/12 {
-  replace shlt  = r`n'shlt   if r`n'shlt   <.
+foreach w of numlist 1/15 {
+    gen r`w'srh = 6 - r`w'shlt if !missing(r`w'shlt)
 }
- 
+
+	label define srh_lb 1 "Poor 1" 2 "Fair 2" 3 "Good 3" 4 "Very good 4" 5 "Excellent 5"
+
+	foreach w of numlist 1/15 {
+		label values r`w'srh srh_lb
+	}
+	tab1 r1srh r7srh
+	
+	gen shlt = .  
+	foreach w of numlist 1/15 {
+		replace shlt = 1 if inlist(r`w'srh, 1, 2)  // Set to "1" if 'Poor' or 'Fair'
+		replace shlt = 0 if missing(shlt) & !missing(r`w'srh) & !inlist(r`w'srh, 1, 2)
+	}
 tab       shlt, m
 
 lab var   shlt "R self-rated health"
 
+
+  * recode CESD
+egen cesd = rowmean(r2cesd r3cesd r4cesd r5cesd r6cesd ///
+                    r7cesd r8cesd r9cesd r10cesd r11cesd ///
+                    r12cesd r13cesd r14cesd r15cesd)
+
+ 
+tab       cesd, m
+lab var   cesd "R CESD scores" 	
+
 * save dataset
+keep hhidpn     hhid rahhidpn pn                    	/// ID
+     kidid      if_alive                               	/// kid ID, vital status
+	 kidage     kagenderbg                          	/// kid age gender
+	 kaeduc     edmax          /// kid education
+         rameduc    rafeduc                 		 /// mother edu father edu
+	 cognition  birthyr    exdeathyr exdodsource study  /// R cognition,  exist year
+	 raracem    rahispan  								/// race
+	 rabplace   ragender   parent  not_con_marr 	   	/// R demo, family structure  
+	 raedyrs    spedmax    spedlhs spedhs spedsc spedcol 	/// R and spouse edu
+	 hitot              								/// household income
+     smokev     vigex      drink           				/// health behvaiors
+     hibpe      diabe      cancre   lunge           		/// R health conditions
+	 hearte     strok      cesd                 			/// R health conditions
+	 study
+	 
 save  rand_hrs_02, replace
