@@ -4,7 +4,7 @@
 // Task: prepare data sets of parental education
 
 * Prepare parental education
-use randhrsfamr1992_2014v1, clear
+use randhrsfamr1992_2018v2, clear
 
 gen hhchild = .
  
