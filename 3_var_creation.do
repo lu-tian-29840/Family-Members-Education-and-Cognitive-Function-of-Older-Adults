@@ -99,87 +99,9 @@ egen cognition = rowmean(r3cogtot  r4cogtot   r5cogtot   r6cogtot r7cogtot ///
 
 
 * 2. 
-* Mediators 
-	*1) Ever smoke
-	* collasp ever smoke now 
-
-gen smokev = 0  // Initialize as never smoked
-
-	* Loop through all 15 waves to identify ever smokers
-	forvalues w = 1/15 {
-		replace smokev = 1 if r`w'smokev == 1  // Flag ever smokers
-	}
-
-	* Handle true missingness (all waves of rwsmokev are missing)
-	gen missing_smoked = 1  // Start by assuming all data is missing
-	forvalues w = 1/15 {
-		replace missing_smoked = 0 if r`w'smokev == 1 | r`w'smokev == 0  
-	}
-
-	* Set ever_smoked to missing if all values are genuinely missing
-	replace smokev = . if missing_smoked == 1
-	tab 	smokev, m
-	lab var smokev "R ever smoked"
-	
-	*2) Ever drink
-
-* Initialize ever_drink to 0 (assume never drank alcohol)
-gen drink = 0  
-
-	* Check all 15 waves to identify respondents who reported ever drinking
-	forvalues w = 1/15 {
-		replace drink = 1 if r`w'drink == 1  // Flag ever drinkers
-	}
-
-	* Handle true missingness (all waves of rwdrink are missing)
-	gen missing_drink = 1  
-	forvalues w = 1/15 {
-		replace missing_drink = 0 if r`w'drink == 1 | r`w'drink == 0  
-	}
-
-	* Set ever_drink to missing if all values are genuinely missing
-	replace drink = . if missing_drink == 1
-	
-	tab       drink , m
-
-	lab var   drink "R ever drinks any alcohol"
-	
-	* 3) Vigrous physical activity
-* Initialize vigex as "no vigorous activity" by default
-gen vigex = 0  
-
-	* Wave 1: Use derived R1VIGACT
-	replace vigex = 1 if r1vigact == 1
-
-	* Wave 2: Use derived R2VIGACT
-	replace vigex = 1 if r2vigact == 1
-
-	* Waves 3–6: Use RwVIGACT directly
-	forvalues w = 3/6 {
-		replace vigex = 1 if r`w'vigact == 1
-	}
-
-	* Waves 7–15: Recode RwVGACTX to binary
-	forvalues w = 7/15 {
-		replace vigex = 1 if r`w'vgactx == 1  // Every day or >1 per week
-	}
-
-	* Handle cases where all waves are missing
-	egen miss_ex = rowmiss(r1vigact r2vigact r3vigact r4vigact r5vigact ///
-                          r6vigact r7vgactx r8vgactx r9vgactx r10vgactx ///
-                          r11vgactx r12vgactx r13vgactx r14vgactx r15vgactx)
-
-	* Set vigex to missing if all 15 variables are missing
-	replace vigex = . if miss_ex == 15.   
-
-	tab     vigex, m
-
-	lab var vigex "Freqency of vigorous physical activity  3+/wk" 
-
-* 4. 
 * Controls 
 
-* 1. recode marital status 
+* 1). recode marital status 
 gen missing_count = 0  // Initialize counter for missing marital status values
 
 forvalues i = 1/15 {
@@ -208,7 +130,7 @@ tab not_con_marr edmax, m
 	}
 
 
-* 2. Spouse education years
+* 2). Spouse education years
  
  egen spedmax = rowmax(s1edyrs s2edyrs s3edyrs s4edyrs s5edyrs s6edyrs s7edyrs ///
                      s8edyrs s9edyrs s10edyrs s11edyrs s12edyrs s13edyrs s14edyrs s15edyrs)
@@ -230,7 +152,7 @@ tab not_con_marr edmax, m
    
    
 	
-* 3. mean total value
+* 3). mean total value
 * Generate a new variable for the mean total value across waves h1 to h15
 egen itot = rowmean(h1itot h2itot h3itot h4itot h5itot h6itot h7itot ///
                     h8itot h9itot h10itot h11itot h12itot h13itot ///
@@ -240,7 +162,7 @@ egen itot = rowmean(h1itot h2itot h3itot h4itot h5itot h6itot h7itot ///
 	lab var   hitot "Household income (logged)"
 	tab hitot, m
 
-* 4. household wealth
+* 4). household wealth
 egen ahous = rowmean(h1ahous h2ahous h3ahous h4ahous h5ahous h6ahous h7ahous ///
                      h8ahous h9ahous h10ahous h11ahous h12ahous h13ahous ///
                      h14ahous h15ahous)
@@ -251,7 +173,7 @@ egen ahous = rowmean(h1ahous h2ahous h3ahous h4ahous h5ahous h6ahous h7ahous ///
 	tab hahous, m				
 
 
-* 5. Respodent health conditions
+* 5). Respodent health conditions
 
  foreach condition in hibpe diabe cancre lunge hearte stroke {
     gen `condition' = .
